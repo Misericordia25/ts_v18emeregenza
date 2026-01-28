@@ -1903,6 +1903,56 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href='../index.html';
   };
 
+
+
+
+
+
+function cloneModuliPuliti(){
+  const container = document.createElement('div');
+  container.style.cssText = 'position:absolute;left:0;top:-4000px;width:210mm;background:#fff';
+
+  document.querySelectorAll('section.modulo').forEach(modulo=>{
+    const clone = modulo.cloneNode(true);
+
+    // Rimuove elementi non stampabili
+    clone.querySelectorAll(
+      'button,.clear-firma-btn,.remove-btn,.controls,#convalida_wrap,input[type=file],input[type=range]'
+    ).forEach(el=>el.remove());
+
+    // CANVAS → IMG
+    const oc = modulo.querySelectorAll('canvas');
+    const cc = clone.querySelectorAll('canvas');
+    oc.forEach((c,i)=>{
+      try{
+        const img = document.createElement('img');
+        img.src = c.toDataURL('image/png');
+        img.style.width = c.getBoundingClientRect().width + 'px';
+        cc[i].replaceWith(img);
+      }catch(e){
+        cc[i]?.remove();
+      }
+    });
+
+    // Disabilita campi
+    clone.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
+
+    container.appendChild(clone);
+  });
+
+  document.body.appendChild(container);
+  return container;
+}
+
+
+
+
+
+
+
+
+
+
   /* ================= PDF ===================== */
   document.getElementById('btn_ts_pdf').onclick=async()=>{
     if(!eseguiConvalida())return;
