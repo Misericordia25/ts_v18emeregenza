@@ -1,8 +1,7 @@
 const { google } = require('googleapis');
 
 /* =====================================================
-   CONFIGURAZIONE ROOT DRIVE PER SOCIETÀ
-   (questi ID sono quelli che mi hai fornito)
+   ROOT DRIVE PER SOCIETÀ
 ===================================================== */
 const ROOTS = {
   MIS_OSIMO: "1bsPNJ2BFJIP9Q3WwDSVNy32u-Qu2qMjr",
@@ -11,7 +10,7 @@ const ROOTS = {
 };
 
 /* =====================================================
-   UTILITY: ottiene o crea una cartella
+   CREA O RECUPERA CARTELLA
 ===================================================== */
 async function getOrCreateFolder(drive, name, parentId) {
   const q = [
@@ -27,7 +26,7 @@ async function getOrCreateFolder(drive, name, parentId) {
     spaces: 'drive'
   });
 
-  if (res.data.files.length > 0) {
+  if (res.data.files.length) {
     return res.data.files[0].id;
   }
 
@@ -44,35 +43,62 @@ async function getOrCreateFolder(drive, name, parentId) {
 }
 
 /* =====================================================
+   MESE FORMATTATO
+===================================================== */
+function getMeseFolder(data) {
+  const mesi = [
+    "01_GENNAIO","02_FEBBRAIO","03_MARZO","04_APRILE",
+    "05_MAGGIO","06_GIUGNO","07_LUGLIO","08_AGOSTO",
+    "09_SETTEMBRE","10_OTTOBRE","11_NOVEMBRE","12_DICEMBRE"
+  ];
+  return mesi[new Date(data).getMonth()];
+}
+
+/* =====================================================
+   COSTRUZIONE ALBERO:
+   ROOT / ANNO / MODULO / PDF|EXCEL / MESE
+===================================================== */
+async function buildFolderTree(drive, societa, modulo, tipoFile, data_servizio) {
+  const rootId = ROOTS[societa];
+  if (!rootId) throw new Error("Società non riconosciuta");
+
+  const anno = new Date(data_servizio).getFullYear().toString();
+  const mese = getMeseFolder(data_servizio);
+
+  const annoId   = await getOrCreateFolder(drive, anno, rootId);
+  const moduloId = await getOrCreateFolder(drive, modulo, annoId);
+  const tipoId   = await getOrCreateFolder(drive, tipoFile, moduloId);
+  const meseId   = await getOrCreateFolder(drive, mese, tipoId);
+
+  return meseId;
+}
+
+/* =====================================================
    HANDLER NETLIFY
 ===================================================== */
 exports.handler = async (event) => {
   try {
-    if (!event.body) {
-      throw new Error("Body mancante");
-    }
-
-    const body = JSON.parse(event.body);
+    if (!event.body) throw new Error("Body mancante");
 
     const {
       societa,
-      modulo,          // es: TS_EMERGENZA | TS_PRIVATI | TS_TRASPORTO | CHECKLIST
-      data_servizio,   // es: 2026-01-29
+      modulo,        // TS_EMERGENZA | TS_TRASPORTO | TS_PRIVATI | CHECKLIST
+      data_servizio, // YYYY-MM-DD
       pdf,
       excel
-    } = body;
+    } = JSON.parse(event.body);
 
-    if (!societa || !ROOTS[societa]) {
-      throw new Error("Società non valida o non configurata");
+    if (!societa || !modulo || !data_servizio) {
+      throw new Error("Parametri obbligatori mancanti");
     }
 
-    if (!pdf || !excel) {
-      throw new Error("File PDF o Excel mancanti");
-    }
+if (isNaN(new Date(data_servizio))) {
+  throw new Error("data_servizio non valida");
+}
+
 
     /* =====================================================
-       AUTENTICAZIONE GOOGLE (SERVICE ACCOUNT)
-       (le env le configureremo DOPO)
+       AUTH GOOGLE (SERVICE ACCOUNT)
     ===================================================== */
     const serviceAccount = JSON.parse(
       process.env.GOOGLE_SERVICE_ACCOUNT.replace(/\\n/g, '\n')
@@ -88,27 +114,25 @@ exports.handler = async (event) => {
     const drive = google.drive({ version: 'v3', auth });
 
     /* =====================================================
-       COSTRUZIONE STRUTTURA CARTELLE
+       CARTELLE PDF / EXCEL (CON ANNO + MESE)
     ===================================================== */
-    const rootId = ROOTS[societa];
+    const pdfFolderId = pdf
+      ? await buildFolderTree(drive, societa, modulo, "PDF", data_servizio)
+      : null;
 
-    const year = new Date(data_servizio).getFullYear().toString();
-
-    const annoId = await getOrCreateFolder(drive, year, rootId);
-    const moduloId = await getOrCreateFolder(drive, modulo, annoId);
-
-    const pdfFolderId = await getOrCreateFolder(drive, 'PDF', moduloId);
-    const excelFolderId = await getOrCreateFolder(drive, 'EXCEL', moduloId);
+    const excelFolderId = excel
+      ? await buildFolderTree(drive, societa, modulo, "EXCEL", data_servizio)
+      : null;
 
     /* =====================================================
        UPLOAD FILE
     ===================================================== */
-    async function uploadFile(name, mimeType, base64, parentId) {
-      const buffer = Buffer.from(base64, 'base64');
+    async function uploadFile(file, mimeType, parentId) {
+      const buffer = Buffer.from(file.data, 'base64');
 
       const res = await drive.files.create({
         requestBody: {
-          name,
+          name: file.name,
           parents: [parentId]
         },
         media: {
@@ -121,37 +145,32 @@ exports.handler = async (event) => {
       return res.data;
     }
 
-    const pdfRes = await uploadFile(
-      pdf.name,
-      'application/pdf',
-      pdf.data,
-      pdfFolderId
-    );
+    const pdfRes = pdf
+      ? await uploadFile(pdf, 'application/pdf', pdfFolderId)
+      : null;
 
-    const excelRes = await uploadFile(
-      excel.name,
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      excel.data,
-      excelFolderId
-    );
+    const excelRes = excel
+      ? await uploadFile(
+          excel,
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          excelFolderId
+        )
+      : null;
 
-    /* =====================================================
-       RISPOSTA OK
-    ===================================================== */
     return {
       statusCode: 200,
       body: JSON.stringify({
         success: true,
         societa,
-        anno: year,
         modulo,
-        pdfId: pdfRes.id,
-        excelId: excelRes.id
+        anno: new Date(data_servizio).getFullYear(),
+        pdfId: pdfRes?.id || null,
+        excelId: excelRes?.id || null
       })
     };
 
   } catch (err) {
-    console.error("UPLOAD ERROR:", err);
+    console.error("UPLOAD DRIVE ERROR:", err);
 
     return {
       statusCode: 500,
