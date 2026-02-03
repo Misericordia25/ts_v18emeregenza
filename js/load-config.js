@@ -50,3 +50,29 @@ async function ensureConfigurazioneSocieta() {
   if (raw) return true;
   return await loadConfigurazioneSocieta();
 }
+
+/* =====================================================
+   GET CONFIG UNIFICATA (BACKEND + LOCALE)
+===================================================== */
+function getAppConfig() {
+  const raw = localStorage.getItem('IMPOSTAZIONI_MISERICORDIA');
+  if (!raw) return null;
+
+  try {
+    const cfg = JSON.parse(raw);
+
+    // ⚠️ flag locale (index_impostazioni)
+    const local = JSON.parse(
+      localStorage.getItem('IMPOSTAZIONI_MISERICORDIA_LOCAL') || '{}'
+    );
+
+    return {
+      ...cfg,
+      documento_definitivo: local.documento_definitivo === true
+    };
+
+  } catch (e) {
+    console.error('Errore getAppConfig:', e);
+    return null;
+  }
+}
