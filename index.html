@@ -172,7 +172,6 @@ async function startCamera(){
 
     log("info","Camera avviata");
 
-    // Torcia se disponibile
     const caps = track.getCapabilities();
     if(caps.torch){
       document.getElementById("torchBtn").disabled=false;
@@ -210,7 +209,10 @@ function startDecoding(){
   const ctx=canvas.getContext("2d");
 
   function scan(){
-    if(!video.videoWidth){ analyzeLoop=requestAnimationFrame(scan); return; }
+    if(!video.videoWidth){
+      analyzeLoop=requestAnimationFrame(scan);
+      return;
+    }
 
     canvas.width=video.videoWidth;
     canvas.height=video.videoHeight;
@@ -285,7 +287,7 @@ function manualSubmit(){
 }
 
 /* =====================================================
-   APRI CHECK-LIST
+   APRI TS EMERGENZA
 ===================================================== */
 function openChecklist(targa){
   const clean = targa.replace(/[^A-Za-z0-9]/g,"").toUpperCase();
@@ -300,7 +302,9 @@ document.getElementById("stopBtn").onclick=stopCamera;
 document.getElementById("retryBtn").onclick=(()=>{ stopCamera(); startCamera(); });
 document.getElementById("torchBtn").onclick=toggleTorch;
 
-function clearLog(){ document.getElementById("log").innerHTML=""; }
+function clearLog(){
+  document.getElementById("log").innerHTML="";
+}
 </script>
 
 </body>

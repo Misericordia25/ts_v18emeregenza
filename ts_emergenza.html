@@ -199,22 +199,37 @@ if (targa) {
   targaInput.value = targa.toUpperCase();
 }
 
-// --- NUMERO PROGRESSIVO ---
 
+// --- NUMERO PROGRESSIVO (VISIVO) + CODICE TABLET (PER NOMI FILE) ---
 
 const year = new Date().getFullYear();
 const key = "PROGRESSIVO_TS_" + year;
 
-// ultimo progressivo ufficiale
+// ultimo progressivo ufficiale (solo lettura qui)
 const last = parseInt(localStorage.getItem(key) || "0", 10);
 
-// progressivo SOLO VISIVO (non salvato)
+// progressivo SOLO VISIVO (non salvato qui)
 const tempNum = last + 1;
 
-// memorizziamo il temporaneo per dopo
-sessionStorage.setItem('TS_PROGRESSIVO_TEMP', tempNum);
+// lettera tablet inserita dal Presidente in index_impostazioni.html
+const tabletCode = (localStorage.getItem("TABLET_CODE") || "").trim().toUpperCase();
 
-document.getElementById("numero_progressivo").value = tempNum;
+// modalità definitivo (dal localStorage locale)
+const localFlags = JSON.parse(localStorage.getItem("IMPOSTAZIONI_MISERICORDIA_LOCAL") || "{}");
+const isDefinitivo = localFlags.documento_definitivo === true;
+
+// Salviamo SEMPRE il numero proposto (serve al BLOCCO 5)
+sessionStorage.setItem("TS_PROGRESSIVO_TEMP", String(tempNum));
+
+// Salviamo anche il codice tablet (serve al BLOCCO 5 per comporre A3 nei nomi file)
+sessionStorage.setItem("TS_TABLET_CODE", tabletCode);
+
+// Salviamo il flag (serve al BLOCCO 5 per logica test/definitivo)
+sessionStorage.setItem("TS_IS_DEFINITIVO", isDefinitivo ? "1" : "0");
+
+// UI: se NON definitivo, niente progressivo (coerente con nota “test/scuola”)
+document.getElementById("numero_progressivo").value = isDefinitivo ? tempNum : "";
+
 
 // --- DATI ENTE ---
 const raw = localStorage.getItem("IMPOSTAZIONI_MISERICORDIA");
@@ -1841,13 +1856,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const eseguiConvalida = () => controllaCodiciFiscaliAssistiti();
 
   /* ================= NOME FILE ===================== */
-  function getFileNameBase(){
-    const d = document.getElementById('data_servizio')?.value || 'data';
-    const n = document.getElementById('numero_progressivo')?.value || '000';
-    const nome = document.querySelector('[name="assistito1_nome"]')?.value || 'anonimo';
-    const cct  = document.querySelector('[name="assistito1_codice"]')?.value || 'NO-CCT';
-    return `${FILE_PRE}_${d}_${n}_${nome}_${cct}`.replace(/[^\w\d]+/g,'_');
-  }
+
+function getFileNameBase(){
+  const d = document.getElementById('data_servizio')?.value || 'data';
+
+  const num    = sessionStorage.getItem("TS_PROGRESSIVO_TEMP") || '0';
+  const tablet = sessionStorage.getItem("TS_TABLET_CODE") || 'X';
+  const isDef  = sessionStorage.getItem("TS_IS_DEFINITIVO") === "1";
+
+  const progressivo = isDef ? (tablet + num) : 'TEST';
+
+  const nome = document.querySelector('[name="assistito1_nome"]')?.value || 'anonimo';
+  const cct  = document.querySelector('[name="assistito1_codice"]')?.value || 'NO-CCT';
+
+  return `${FILE_PRE}_${d}_${progressivo}_${nome}_${cct}`
+    .replace(/[^\w\d]+/g,'_');
+}
+
 
   /* ================= EXCEL – RIGA UNICA ===================== */
   function buildExcelRow(){
@@ -1956,7 +1981,7 @@ function cloneModuliPuliti(){
   /* ================= PDF ===================== */
   document.getElementById('btn_ts_pdf').onclick=async()=>{
     if(!eseguiConvalida())return;
-    confermaProgressivoDefinitivo();
+   
     const cont=cloneModuliPuliti();
     const c=await html2canvas(cont,{scale:4,backgroundColor:'#fff'});
     const pdf=new window.jspdf.jsPDF('p','mm','a4');
@@ -1969,7 +1994,7 @@ function cloneModuliPuliti(){
   /* ================= EXCEL LOCALE ===================== */
   document.getElementById('btn_ts_excel').onclick=()=>{
     if(!eseguiConvalida())return;
-    confermaProgressivoDefinitivo();
+   
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(buildExcelRow()),'Dati');
     XLSX.writeFile(wb,getFileNameBase()+'.xlsx');
@@ -1979,6 +2004,14 @@ function cloneModuliPuliti(){
   /* ================= SERVER ===================== */
   document.getElementById('btn_ts_server').onclick=async()=>{
     if(!eseguiConvalida())return;
+
+  // 🔒 BLOCCO SICUREZZA LETTERA TABLET (QUI)
+  const tablet = sessionStorage.getItem("TS_TABLET_CODE");
+  if(!tablet){
+    alert("❌ Lettera tablet mancante. Contattare il Presidente.");
+    return;
+  }
+
     confermaProgressivoDefinitivo();
 
     if(!LAST_PDF_BLOB){
@@ -1999,11 +2032,17 @@ function cloneModuliPuliti(){
       );
     }
 
-    await inviaAlServer(LAST_PDF_BLOB,LAST_EXCEL_BLOB);
-    alert('✅ Documenti caricati correttamente sul server');
-  };
+await inviaAlServer(LAST_PDF_BLOB,LAST_EXCEL_BLOB);
 
+alert('✅ Documenti caricati correttamente sul server');
+
+// 🔚 chiusura ciclo: ritorno pagina ponte
+window.location.href = '../index.html';
+
+  };
 });
+
+   
 </script>
 
 

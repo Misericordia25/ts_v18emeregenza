@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Impostazioni app Misericordia</title>
+<title>Impostazioni App Misericordia</title>
 
 <style>
 body{
   font-family: Arial, sans-serif;
   background:#f4faff;
-  margin:0; padding:20px;
+  margin:0;
+  padding:20px;
   max-width:720px;
   margin:auto;
 }
@@ -44,6 +45,7 @@ button{
 .btn-warning{background:#ff9f00!important;}
 .btn-danger{background:#dc3545!important;}
 .hidden{display:none}
+small{color:#555}
 </style>
 </head>
 
@@ -56,12 +58,24 @@ button{
 =========================== -->
 <div id="admin_section" class="hidden">
 
-  <!-- 🔹 INIZIALIZZAZIONE TABLET -->
   <div class="section">
-    <h3>🏷️ Inizializzazione Tablet (Società)</h3>
+    <h3>🏷️ Inizializzazione Tablet</h3>
 
     <label>Codice Società</label>
     <input id="codice_societa" type="text" placeholder="Es. MIS_OSIMO">
+
+    <label>Lettera identificativa Tablet</label>
+    <input id="tablet_code"
+           type="text"
+           maxlength="1"
+           placeholder="Es. A"
+           style="text-transform:uppercase"
+           oninput="this.value=this.value.toUpperCase()">
+
+    <small>
+      Una sola lettera (A–Z).<br>
+      Deve essere unica per ogni tablet.
+    </small>
 
     <button class="btn-secondary" onclick="inizializzaTablet()">
       🔄 Carica configurazione società
@@ -70,9 +84,8 @@ button{
     <div id="init_status" style="margin-top:8px;font-weight:bold;"></div>
   </div>
 
-  <!-- DATI ENTE -->
   <div class="section">
-    <h3>🏛️ DATI ENTE</h3>
+    <h3>🏛️ Dati Ente</h3>
     <label>Nome ente</label>
     <input id="ente_nome" type="text">
     <label>Città</label>
@@ -85,30 +98,30 @@ button{
     <input id="ente_tel" type="text">
   </div>
 
-  <!-- EMAIL -->
   <div class="section">
-    <h3>📧 EMAIL DI INVIO DOCUMENTO TS</h3>
+    <h3>📧 Email ufficiale per invio documenti</h3>
     <label>Email destinazione</label>
-    <input id="mail_check" type="email">
-    <label>Password Drive</label>
-    <input id="mail_pwd" type="password">
+    <input id="mail_to" type="email">
+
+    <label style="margin-top:14px;display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" id="documento_definitivo">
+      Documento definitivo – deposita su Drive
+    </label>
+
+    <small>
+      Se NON selezionato: modalità test / scuola.<br>
+      Nessun deposito su Drive e nessun progressivo.
+    </small>
   </div>
 
-  <!-- SICUREZZA -->
   <div class="section">
     <h3>🔐 Sicurezza</h3>
     <button class="btn-danger" onclick="cambiaPin()">🔄 Cambia PIN Presidente</button>
   </div>
 
-  <!-- IMPORT / EXPORT -->
-  <div class="section">
-    <h3>🔒 Import / Export impostazioni</h3>
-    <textarea id="jsonArea" rows="4"></textarea>
-    <button class="btn-secondary" onclick="copyJSON()">Copia JSON</button>
-    <button class="btn-warning" onclick="importJSON()">Importa JSON</button>
-  </div>
-
-  <button onclick="saveSettings()" class="btn-secondary">💾 Salva impostazioni</button>
+  <button onclick="saveSettings()" class="btn-secondary">
+    💾 Salva impostazioni
+  </button>
 </div>
 
 <!-- ==========================
@@ -116,23 +129,25 @@ button{
 =========================== -->
 <div id="operator_section" class="section">
   <h3>🚑 Accesso Operatore</h3>
-  <p>Inserire la targa del veicolo dalla schermata principale.</p>
   <button onclick="sbloccaAdmin()">⚙️ Accesso Presidente</button>
 </div>
 
-<button onclick="location.href='index.html'" class="btn-warning">🏠 Torna alla Pagina Ponte</button>
+<button onclick="location.href='index.html'" class="btn-warning">
+  🏠 Torna alla Pagina Ponte
+</button>
 
-<!-- LOAD CONFIG -->
 <script src="js/load-config.js"></script>
 
 <script>
 const LS_KEY_PLAIN  = "IMPOSTAZIONI_MISERICORDIA";
 const LS_KEY_SECURE = "IMPOSTAZIONI_MISERICORDIA_SECURE";
+const LS_KEY_LOCAL  = "IMPOSTAZIONI_MISERICORDIA_LOCAL";
 const PIN_KEY       = "PIN_PRESIDENTE";
 const ADMIN_UNLOCK  = "ADMIN_UNLOCKED";
+const TABLET_CODE_KEY = "TABLET_CODE";
 
 /* ==========================
-   SBLOCCO PRESIDENTE
+   ACCESSO PRESIDENTE
 =========================== */
 function sbloccaAdmin(){
   const pin = prompt("Inserisci codice presidente");
@@ -159,32 +174,33 @@ function mostraAdmin(){
 }
 
 /* ==========================
-   INIZIALIZZAZIONE TABLET
+   INIZIALIZZAZIONE
 =========================== */
 async function inizializzaTablet(){
   const codice = codice_societa.value.trim().toUpperCase();
-  const status = document.getElementById("init_status");
+  const tabletCode = tablet_code.value.trim().toUpperCase();
+
+  if(!/^[A-Z]$/.test(tabletCode)){
+    init_status.textContent = "❌ Inserire la lettera del tablet";
+    init_status.style.color = "red";
+    return;
+  }
 
   if(!codice){
-    status.textContent = "❌ Inserire un codice società";
-    status.style.color = "red";
+    init_status.textContent = "❌ Inserire codice società";
+    init_status.style.color = "red";
     return;
   }
 
   localStorage.setItem("CODICE_SOCIETA", codice);
-  status.textContent = "⏳ Caricamento configurazione...";
-  status.style.color = "#555";
+  localStorage.setItem(TABLET_CODE_KEY, tabletCode);
+
+  init_status.textContent = "⏳ Caricamento configurazione...";
+  init_status.style.color = "#555";
 
   const ok = await loadConfigurazioneSocieta();
-
-  if(ok){
-    status.textContent = "✅ Configurazione caricata";
-    status.style.color = "green";
-    location.reload();
-  }else{
-    status.textContent = "❌ Errore caricamento configurazione";
-    status.style.color = "red";
-  }
+  init_status.textContent = ok ? "✅ Configurazione caricata" : "❌ Errore caricamento";
+  init_status.style.color = ok ? "green" : "red";
 }
 
 /* ==========================
@@ -206,28 +222,26 @@ function cambiaPin(){
 }
 
 /* ==========================
-   CARICAMENTO DATI
+   LOAD
 =========================== */
 window.onload = () => {
-
-  // 🔹 mostra codice società se già inizializzato
-  const cs = localStorage.getItem("CODICE_SOCIETA");
-  if(cs) codice_societa.value = cs;
-
   if(localStorage.getItem(ADMIN_UNLOCK)==="1") mostraAdmin();
 
+  codice_societa.value = localStorage.getItem("CODICE_SOCIETA") || "";
+  tablet_code.value = localStorage.getItem(TABLET_CODE_KEY) || "";
+
   const raw = localStorage.getItem(LS_KEY_PLAIN);
+  const local = JSON.parse(localStorage.getItem(LS_KEY_LOCAL) || "{}");
+
   if(raw){
-    try{
-      const cfg = JSON.parse(raw);
-      ente_nome.value  = cfg.ente.nome || "";
-      ente_citta.value = cfg.ente.citta || "";
-      ente_via.value   = cfg.ente.via || "";
-      ente_civico.value= cfg.ente.civico || "";
-      ente_tel.value   = cfg.ente.tel || "";
-      mail_check.value = cfg.mail?.to || "";
-      mail_pwd.value   = cfg.mail?.pwd || "";
-    }catch(e){}
+    const cfg = JSON.parse(raw);
+    ente_nome.value  = cfg.ente?.nome || "";
+    ente_citta.value = cfg.ente?.citta || "";
+    ente_via.value   = cfg.ente?.via || "";
+    ente_civico.value= cfg.ente?.civico || "";
+    ente_tel.value   = cfg.ente?.tel || "";
+    mail_to.value    = cfg.mail?.to || "";
+    documento_definitivo.checked = local.documento_definitivo === true;
   }
 };
 
@@ -241,6 +255,13 @@ async function saveSettings(){
     return;
   }
 
+  const tabletCode = tablet_code.value.trim().toUpperCase();
+  if(!/^[A-Z]$/.test(tabletCode)){
+    alert("Inserire una sola lettera (A–Z) per il tablet");
+    return;
+  }
+  localStorage.setItem(TABLET_CODE_KEY, tabletCode);
+
   const settings = {
     ente:{
       nome: ente_nome.value,
@@ -249,28 +270,38 @@ async function saveSettings(){
       civico: ente_civico.value,
       tel: ente_tel.value
     },
-    mail:{
-      to: mail_check.value,
-      pwd: mail_pwd.value
-    }
+    mail:{ to: mail_to.value.trim() }
   };
 
   localStorage.setItem(LS_KEY_PLAIN, JSON.stringify(settings));
+  localStorage.setItem(
+    LS_KEY_LOCAL,
+    JSON.stringify({ documento_definitivo: documento_definitivo.checked })
+  );
 
   const encrypted = await encrypt(pin, settings);
   localStorage.setItem(LS_KEY_SECURE, JSON.stringify(encrypted));
 
-  alert("Impostazioni salvate");
+  alert("✅ Impostazioni salvate");
 }
 
 /* ==========================
    CIFRATURA
 =========================== */
-function bufToBase64(bytes){ let s=""; bytes.forEach(b=>s+=String.fromCharCode(b)); return btoa(s);}
+function bufToBase64(bytes){
+  let s=""; bytes.forEach(b=>s+=String.fromCharCode(b));
+  return btoa(s);
+}
 async function deriveKey(pin, salt){
-  const keyMaterial = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:50000,hash:"SHA-256"},
-    keyMaterial,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+  const km = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(pin),
+    "PBKDF2", false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    {name:"PBKDF2",salt,iterations:50000,hash:"SHA-256"},
+    km, {name:"AES-GCM",length:256},
+    false, ["encrypt","decrypt"]
+  );
 }
 async function encrypt(pin, obj){
   const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -278,17 +309,11 @@ async function encrypt(pin, obj){
   const key  = await deriveKey(pin, salt);
   const data = new TextEncoder().encode(JSON.stringify(obj));
   const enc  = await crypto.subtle.encrypt({name:"AES-GCM",iv}, key, data);
-  return {salt:bufToBase64(salt),iv:bufToBase64(iv),data:bufToBase64(new Uint8Array(enc))};
-}
-function copyJSON(){
-  const raw = localStorage.getItem(LS_KEY_SECURE);
-  if(raw) navigator.clipboard.writeText(raw);
-}
-function importJSON(){
-  try{
-    localStorage.setItem(LS_KEY_SECURE, jsonArea.value);
-    alert("Importato");
-  }catch{}
+  return {
+    salt:bufToBase64(salt),
+    iv:bufToBase64(iv),
+    data:bufToBase64(new Uint8Array(enc))
+  };
 }
 </script>
 
